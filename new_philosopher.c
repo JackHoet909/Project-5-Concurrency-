@@ -179,46 +179,44 @@ void *fourthalgorithm(void *arg)
 
     while (1) // forever
     {
+        // this will be used to determine if we found some random fork
+        // if not we will wait for our right fork
+        int forkFound = 0;
 
-        printf("this is alg 4\n");
         // think for a little bit
         usleep(1000);   // 1 millisecond thinking time
 
         // grab the left fork first
-        Zem_wait(&forks[left]);       
+        Zem_wait(&forks[left]);     
+         
         forkAvailable[left]  = 0;
+        
         printf("philosopher %d got LEFT fork %d\n", id, left);
         if (id == roguePhilosopher)
         {
-            printf("I AM A ROGUE PHILOSOPHER\n");
-            //take any fork that is available
-            for(int i = 0; i < sizeof(forkAvailable); i++){
-                Zem_wait(&forks[i]);  
-                if(forkAvailable[i] == 1)
-                {
-                    printf("I'M IN THE IF STATEMENT\n");
-                    printf("Rogue philosopher %d picked up fork%d\n", id, i);
+            for(int i = 0; i < philosopherNum; i++)
+                if (forkAvailable[i]) {
+                    
                     Zem_wait(&forks[i]);
-                    forkAvailable[i] = 0;
-                    break;
+                    
+                    // fork is free, so we "reserve" it
+                    Zem_wait(&forkLock);
+                    forkAvailable[i]  = 0;
+                    Zem_post(&forkLock);
+                   
+                    printf("ROGUE PHILOSPHER STOLE A FORK!!!\n");
+                    
+                    forkFound = 1;
+
+                    break;  // we got both forks, leave the loop
                 }
-            }
         }
-
-        // tiny pause to make deadlock more likely
-        usleep(100);
-
-        // grab the right fork next
-        Zem_wait(&forks[right]);          
-        printf("philosopher %d got RIGHT fork %d\n", id, right);
-
-        // verify that each picked up fork is marked unavailable
-        forkAvailable[left]  = 0;
-        forkAvailable[right] = 0;
-        Zem_wait(&forkLock);
-        
-    }
-        Zem_post(&forkLock);
+    
+        if (forkFound == 0)
+        {
+            Zem_wait(&forks[right]);
+            printf("rogue philosopher settled for his normal fork\n");
+        }
 
         // eat now that we have both forks
         printf("philo %d eating\n", id);
@@ -230,7 +228,7 @@ void *fourthalgorithm(void *arg)
         Zem_post(&forks[left]);           // put down left fork
 
     return NULL;  // we never really get here
-
+    }
 } //how to run this: ./new_philosopher <num_philosophers> <algorithm>
 
 // ---------------- main ----------------
