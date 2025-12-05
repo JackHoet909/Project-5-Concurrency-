@@ -33,8 +33,7 @@ void *firstalgorithm(void *arg)
         Zem_wait(&forks[left]);           
         printf("philosopher %d got LEFT fork %d\n", id, left);
 
-        // tiny pause to make deadlock more likely
-        usleep(100);
+        
 
         // grab the right fork next
         Zem_wait(&forks[right]);          
@@ -170,6 +169,70 @@ void *thirdalgorithm(void *arg)
     return NULL;
 }
 
+void *fourthalgorithm(void *arg)
+{
+    int id = (int)(long long)arg; // this philosopher's number
+    //rogue philosopher
+    int roguePhilosopher = 0; // you can change this to any philosopher number you want
+    int left  = id; // left fork is same number as the philosopher
+    int right = (id + 1) % philosopherNum; // right fork is the next one (wraps around)
+
+    while (1) // forever
+    {
+
+        printf("this is alg 4\n");
+        // think for a little bit
+        usleep(1000);   // 1 millisecond thinking time
+
+        // grab the left fork first
+        Zem_wait(&forks[left]);       
+        forkAvailable[left]  = 0;
+        printf("philosopher %d got LEFT fork %d\n", id, left);
+        if (id == roguePhilosopher)
+        {
+            printf("I AM A ROGUE PHILOSOPHER\n");
+            //take any fork that is available
+            for(int i = 0; i < sizeof(forkAvailable); i++){
+                Zem_wait(&forks[i]);  
+                if(forkAvailable[i] == 1)
+                {
+                    printf("I'M IN THE IF STATEMENT\n");
+                    printf("Rogue philosopher %d picked up fork%d\n", id, i);
+                    Zem_wait(&forks[i]);
+                    forkAvailable[i] = 0;
+                    break;
+                }
+            }
+        }
+
+        // tiny pause to make deadlock more likely
+        usleep(100);
+
+        // grab the right fork next
+        Zem_wait(&forks[right]);          
+        printf("philosopher %d got RIGHT fork %d\n", id, right);
+
+        // verify that each picked up fork is marked unavailable
+        forkAvailable[left]  = 0;
+        forkAvailable[right] = 0;
+        Zem_wait(&forkLock);
+        
+    }
+        Zem_post(&forkLock);
+
+        // eat now that we have both forks
+        printf("philo %d eating\n", id);
+        eatCount[id]++;                   // remember we ate one more time
+        usleep(1000);                     // eat a little bit
+
+        // put both forks back on the table
+        Zem_post(&forks[right]);          // put down right fork
+        Zem_post(&forks[left]);           // put down left fork
+
+    return NULL;  // we never really get here
+
+} //how to run this: ./new_philosopher <num_philosophers> <algorithm>
+
 // ---------------- main ----------------
 
 int main(int argc, char *argv[]) {
@@ -178,6 +241,7 @@ int main(int argc, char *argv[]) {
         printf("usage: %s <num_philosophers> <algorithm>\n", argv[0]);
         printf("  algorithm 1 = left then right (can deadlock)\n");
         printf("  algorithm 2 = only pick up if both forks available\n");
+        printf("  algorithm 3 = limit number of seated philosophers\n");
         return 1;
     }
 
@@ -188,8 +252,8 @@ int main(int argc, char *argv[]) {
         printf("please choose num_philosophers between 3 and 20\n");
         return 1;
     }
-    if (algorithm != 1 && algorithm != 2 && algorithm !=3) {
-        printf("algorithm must be 1, 2, or 3\n");
+    if (algorithm != 1 && algorithm != 2 && algorithm != 3 && algorithm != 4 ) {
+        printf("algorithm must be 1, 2, 3 or 4\n");
         return 1;
     }
 
@@ -228,6 +292,9 @@ int main(int argc, char *argv[]) {
         }
         else if (algorithm == 3) {
             pthread_create(&t, NULL, thirdalgorithm, (void*)(long long)i);
+        }
+        else if (algorithm == 4) {
+            pthread_create(&t, NULL, fourthalgorithm, (void*)(long long)i);
         }
         // we don't store t because we never join; main just prints forever
     }
